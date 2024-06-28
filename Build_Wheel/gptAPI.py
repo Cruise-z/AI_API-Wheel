@@ -4,8 +4,6 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from nltk.tokenize import sent_tokenize
 import nltk
 import re
-import os
-import random
 
 class Clients(Enum):
     client_free = OpenAI(

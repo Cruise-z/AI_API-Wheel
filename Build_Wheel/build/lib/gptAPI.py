@@ -4,19 +4,7 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from nltk.tokenize import sent_tokenize
 import nltk
 import re
-
-class Clients(Enum):
-    client_free = OpenAI(
-        # defaults to os.environ.get("OPENAI_API_KEY")
-        api_key="sk-PMSqPTJgxZqpgF8onvnsbEfPUYPk7WYHzfBCOx4eY3tjPc2u",
-        base_url="https://api.chatanywhere.tech/v1"
-    )
-
-    client_paid = OpenAI(
-        # defaults to os.environ.get("OPENAI_API_KEY")
-        api_key="sk-5pzatlsS3ukKWKdQ8TW40Z5BhnS8UW5rEcdzeSndTGxvmKH9",
-        base_url="https://api.chatanywhere.tech/v1"
-    )
+import configparser
 
 class Model(Enum):
     gpt35t          = "gpt-3.5-turbo"
@@ -30,24 +18,62 @@ class Model(Enum):
     gpt4t_prev_ca   = "gpt-4-turbo-preview-ca"
     # 上述模型对付费版均可用
 
+class Client:
+    def __init__(self, ConfigPath:str, ConfigType:str):
+        # 读取.ini文件中的"api_key"以及"base_url"配置
+        config = configparser.ConfigParser()
+        config.read(ConfigPath)
+        # 初始化 OpenAI 实例
+        self.__api_key = config[ConfigType]['api_key']
+        self.__base_url = config[ConfigType]['base_url']
+        self.openai_client = OpenAI(
+            api_key=self.__api_key, 
+            base_url=self.__base_url
+            )
+        # 定义支持的模型列表
+        if self.CheckType() == 'free':
+            self.__supported_models = [Model.gpt35t, Model.gpt4, Model.gpt4o]
+        elif self.CheckType() == 'paid':
+            self.__supported_models = [model for model in Model]
+
+    # 此函数有待完善，主要是不清楚该api是如何生成免费以及付费的api_key的
+    def CheckType(self):
+        if re.match(r"^sk-[a-zA-Z]", self.__api_key):
+            return 'free'
+        elif re.match(r"^sk-\d", self.__api_key):
+            return 'paid'
+        else:
+            raise ValueError(f"API key format is incorrect!")
+        
+    def CheckModel(self, Model:Model):
+        if Model not in self.supported_models:
+            raise ValueError(f"Model {Model} is not supported!")
+
+    
+    @property
+    def supported_models(self):
+        return self.__supported_models
+
 
 # 非流式响应
-def gpt_api(Client: Clients, Model: Model, messages: list):
+def gpt_api(Client: Client, Model: Model, messages: list):
     """为提供的对话消息创建新的回答
 
     Args:
         messages (list): 完整的对话消息
     """
-    completion = (Client.value).chat.completions.create(model=Model.value, messages=messages)
+    Client.CheckModel(Model)
+    completion = (Client.openai_client).chat.completions.create(model=Model.value, messages=messages)
     print(completion.choices[0].message.content)
 
-def gpt_api_stream(Client: Clients, Model: Model, messages: list):
+def gpt_api_stream(Client: Client, Model: Model, messages: list):
     """为提供的对话消息创建新的回答 (流式传输)
 
     Args:
         messages (list): 完整的对话消息
     """
-    stream = (Client.value).chat.completions.create(
+    Client.CheckModel(Model)
+    stream = (Client.openai_client).chat.completions.create(
         model=Model.value,
         messages=messages,
         stream=True,
@@ -60,27 +86,7 @@ def gpt_api_stream(Client: Clients, Model: Model, messages: list):
     print("\n")
     return ans
 
-def Data_quality_assessment(Client: Clients, Model: Model, File_path):
-    # 使用with语句自动管理文件的打开和关闭
-    with open(File_path, 'r', encoding='utf-8') as file:
-        content = file.read()  # 读取整个文件内容
-
-    vuln_num_pattern = r'CVE-\d{4}-\d{4}'
-    vuln_num = re.search(vuln_num_pattern, file.name).group()
-
-    messages = [{'role': 'user',
-                 'content': '请分析:' + content + '该内容是否与漏洞:' + vuln_num 
-                          + '的描述信息或其POC(Proof Of Concept)信息相关?\n'
-                          + '注：输出格式如下\n'
-                          + '描述信息：(有/无)关'
-                          + 'POC信息：(有/无)关'
-                          + '内容概述：(对上述给出的内容作简要分析概述)'},]
-    # 非流式调用
-    # gpt_api(Client, Model, messages)
-    # 流式调用
-    return gpt_api_stream(Client, Model, messages)
-
-def Common_Chat(Client: Clients, Model: Model, Messages):
+def chat_stream(Client: Client, Model: Model, Messages):
     messages = []
     for Message in Messages:
         messages.append({'role': 'user','content': Message})
@@ -105,4 +111,22 @@ def count_tokens_in_file(file_path, tokenizer, model_max_length=1024):
             token_count += len(encoded_sentence['input_ids'][0])
     return token_count
 
-    
+def Data_quality_assessment(Client: Client, Model: Model, File_path):
+    # 使用with语句自动管理文件的打开和关闭
+    with open(File_path, 'r', encoding='utf-8') as file:
+        content = file.read()  # 读取整个文件内容
+
+    vuln_num_pattern = r'CVE-\d{4}-\d{4}'
+    vuln_num = re.search(vuln_num_pattern, file.name).group()
+
+    messages = [{'role': 'user',
+                 'content': '请分析:' + content + '该内容是否与漏洞:' + vuln_num 
+                          + '的描述信息或其POC(Proof Of Concept)信息相关?\n'
+                          + '注：输出格式如下\n'
+                          + '描述信息：(有/无)关'
+                          + 'POC信息：(有/无)关'
+                          + '内容概述：(对上述给出的内容作简要分析概述)'},]
+    # 非流式调用
+    # gpt_api(Client, Model, messages)
+    # 流式调用
+    return gpt_api_stream(Client, Model, messages)

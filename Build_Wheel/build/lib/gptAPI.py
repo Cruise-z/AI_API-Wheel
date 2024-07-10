@@ -5,8 +5,10 @@ from nltk.tokenize import sent_tokenize
 import nltk
 import re
 import configparser
+from pathlib import Path
 
 class Model(Enum):
+    ## 下面的模型为GPT的专用模型
     text_embed_ada_002  = "text-embedding-ada-002"
     text_embed_3_small  = "text-embedding-3-small"
     text_embed_3_large  = "text-embedding-3-large"
@@ -44,7 +46,11 @@ class Model(Enum):
     tts1_hd_1106        = "tts-1-hd-1106"
     dall_e2             = "dall-e-2"
     dall_e3             = "dall-e-3"
-    # 上述模型对付费版均可用
+    # 上述模型对GPT付费版均可用
+    ## 下面的模型为Kimi的专用模型
+    kimi_8k             = "moonshot-v1-8k"
+    kimi_32k            = "moonshot-v1-32k"
+    kimi_128k           = "moonshot-v1-128k"
 
 class Client:
     def __init__(self, ConfigPath:str, ConfigType:str):
@@ -59,21 +65,28 @@ class Client:
             base_url=self.__base_url
             )
         # 定义支持的模型列表
-        if self.CheckType() == 'free':
+        if self.CheckType() == 'GPT_free':
             self.__supported_models = [
                 Model.text_embed_ada_002, Model.text_embed_3_small, Model.text_embed_3_large,
                 Model.gpt35t, Model.gpt35t_1106, Model.gpt35t_0613, Model.gpt35t_0301, Model.gpt35t_0125,
                 Model.gpt4o, Model.gpt4o_240513, Model.gpt4, 
                 ]
-        elif self.CheckType() == 'paid':
-            self.__supported_models = [model for model in Model]
+        elif self.CheckType() == 'GPT_paid':
+            self.__supported_models = [model for model in Model 
+                                       if model not in [Model.kimi_8k, Model.kimi_32k, Model.kimi_128k]]
+        elif self.CheckType() == 'Kimi':
+            self.__supported_models = [Model.kimi_8k, Model.kimi_32k, Model.kimi_128k]
+        else:
+            self.__supported_models = []
 
     # 此函数有待完善，主要是不清楚该api是如何生成免费以及付费的api_key的
     def CheckType(self):
-        if re.match(r"^sk-[a-zA-Z]", self.__api_key):
-            return 'free'
-        elif re.match(r"^sk-\d", self.__api_key):
-            return 'paid'
+        if re.match(r"^sk-PMS.*c2u", self.__api_key):
+            return 'GPT_free'
+        elif re.match(r"^sk-5pz.*KH9", self.__api_key):
+            return 'GPT_paid'
+        elif re.match(r"^sk-R5u.*7OB", self.__api_key):
+            return 'Kimi'
         else:
             raise ValueError(f"API key format is incorrect!")
         
@@ -118,7 +131,7 @@ def gpt_api_stream(Client: Client, Model: Model, messages: list):
     print("\n")
     return ans
 
-def chat_stream(Client: Client, Model: Model, Messages):
+def chat_stream(Client: Client, Model: Model, Messages:list):
     messages = []
     for Message in Messages:
         messages.append({'role': 'user','content': Message})
@@ -126,6 +139,19 @@ def chat_stream(Client: Client, Model: Model, Messages):
     # gpt_35_api(Client, Model, messages)
     # 流式调用
     gpt_api_stream(Client, Model, messages)
+
+def file_chat(Client: Client, Model: Model, filename:str, Messages:list):
+    File = Path(filename)
+    if File.exists():
+        messages = []
+        file_object = (Client.openai_client).files.create(file=File, purpose="file-extract")
+        file_content = (Client.openai_client).files.content(file_id=file_object.id).text
+        messages.append({'role': 'system','content': file_content})
+        for Message in Messages:
+            messages.append({'role': 'user','content': Message})
+        gpt_api_stream(Client, Model, messages)
+    else:
+        print("File not exist!!!")
 
 def count_tokens_in_file(file_path, tokenizer, model_max_length=1024):
     nltk.download('punkt')

@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='GPT_API', # 库的名称
-      version='1.1',    # 版本号
+      version='1.2',    # 版本号
       description='Some packaging interface functions of GPT API',
       author='Cruise.zrz',
       author_email='cruise.zrz@gmail.com',

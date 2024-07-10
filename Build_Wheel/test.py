@@ -131,27 +131,32 @@ def gpt_api_stream(Client: Client, Model: Model, messages: list):
     print("\n")
     return ans
 
-def chat_stream(Client: Client, Model: Model, Messages:list):
+def common_chat(Client: Client, Model: Model, Messages:list, StreamMode:bool):
     messages = []
     for Message in Messages:
         messages.append({'role': 'user','content': Message})
-    # 非流式调用
-    # gpt_35_api(Client, Model, messages)
-    # 流式调用
-    gpt_api_stream(Client, Model, messages)
+    if StreamMode is True: # 流式调用
+        return gpt_api_stream(Client, Model, messages)
+    else: # 非流式调用
+        return gpt_api(Client, Model, messages)
 
-def file_chat(Client: Client, Model: Model, filename:str, Messages:list):
+def file_chat(Client: Client, Model: Model, filename:str, Messages:list, StreamMode:bool):
     File = Path(filename)
     if File.exists():
         messages = []
         file_object = (Client.openai_client).files.create(file=File, purpose="file-extract")
         file_content = (Client.openai_client).files.content(file_id=file_object.id).text
+        (Client.openai_client).files.delete(file_id=file_object.id)
         messages.append({'role': 'system','content': file_content})
         for Message in Messages:
             messages.append({'role': 'user','content': Message})
-        gpt_api_stream(Client, Model, messages)
+        if StreamMode is True: # 流式调用
+            return gpt_api_stream(Client, Model, messages)
+        else: # 非流式调用
+            return gpt_api(Client, Model, messages)
     else:
         print("File not exist!!!")
+        return None
 
 def count_tokens_in_file(file_path, tokenizer, model_max_length=1024):
     nltk.download('punkt')
@@ -189,6 +194,7 @@ def Data_quality_assessment(Client: Client, Model: Model, File_path):
     # 流式调用
     return gpt_api_stream(Client, Model, messages)
 
+
     
 if __name__ == '__main__':
     
@@ -200,6 +206,6 @@ if __name__ == '__main__':
 
     messages = ["请保留这个文件中与漏洞POC强相关的内容以及.md的相应格式，剔除与POC无关的(比如html格式，commit对话等)内容"]
 
-    file_chat(client_kimi, Model.kimi_8k, "test1.md", messages)
+    file_chat(client_kimi, Model.kimi_8k, "test.md", messages, StreamMode=True)
 
     # chat_stream(client_paid, Model.gpt35t, messages)

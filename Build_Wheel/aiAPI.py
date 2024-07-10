@@ -146,6 +146,7 @@ def file_chat(Client: Client, Model: Model, filename:str, Messages:list, StreamM
         messages = []
         file_object = (Client.openai_client).files.create(file=File, purpose="file-extract")
         file_content = (Client.openai_client).files.content(file_id=file_object.id).text
+        (Client.openai_client).files.delete(file_id=file_object.id)
         messages.append({'role': 'system','content': file_content})
         for Message in Messages:
             messages.append({'role': 'user','content': Message})

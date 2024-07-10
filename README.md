@@ -1,4 +1,4 @@
-# GPT_API-Wheel
+# AI_API-Wheel
 My wheel of GPT_API
 
 

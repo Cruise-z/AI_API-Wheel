@@ -1,5 +1,5 @@
 # AI_API-Wheel
-My wheel of GPT_API
+My wheel of AI_API
 
 
 

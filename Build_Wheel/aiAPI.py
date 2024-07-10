@@ -131,16 +131,16 @@ def gpt_api_stream(Client: Client, Model: Model, messages: list):
     print("\n")
     return ans
 
-def chat_stream(Client: Client, Model: Model, Messages:list):
+def common_chat(Client: Client, Model: Model, Messages:list, StreamMode:bool):
     messages = []
     for Message in Messages:
         messages.append({'role': 'user','content': Message})
-    # 非流式调用
-    # gpt_35_api(Client, Model, messages)
-    # 流式调用
-    gpt_api_stream(Client, Model, messages)
+    if StreamMode is True: # 流式调用
+        return gpt_api_stream(Client, Model, messages)
+    else: # 非流式调用
+        return gpt_api(Client, Model, messages)
 
-def file_chat(Client: Client, Model: Model, filename:str, Messages:list):
+def file_chat(Client: Client, Model: Model, filename:str, Messages:list, StreamMode:bool):
     File = Path(filename)
     if File.exists():
         messages = []
@@ -149,9 +149,13 @@ def file_chat(Client: Client, Model: Model, filename:str, Messages:list):
         messages.append({'role': 'system','content': file_content})
         for Message in Messages:
             messages.append({'role': 'user','content': Message})
-        gpt_api_stream(Client, Model, messages)
+        if StreamMode is True: # 流式调用
+            return gpt_api_stream(Client, Model, messages)
+        else: # 非流式调用
+            return gpt_api(Client, Model, messages)
     else:
         print("File not exist!!!")
+        return None
 
 def count_tokens_in_file(file_path, tokenizer, model_max_length=1024):
     nltk.download('punkt')
